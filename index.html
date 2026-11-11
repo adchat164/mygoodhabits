@@ -216,13 +216,49 @@ th{color:var(--muted);font-weight:500}
   .arc.done{animation:lit 1.2s ease-out 1}
   @keyframes lit{0%{filter:drop-shadow(0 0 0 currentColor)}40%{filter:drop-shadow(0 0 8px currentColor) drop-shadow(0 0 18px currentColor)}100%{filter:drop-shadow(0 0 4px currentColor) drop-shadow(0 0 10px currentColor)}}
 }
+
+/* Cuenta (Supabase Auth): sin sesión solo se ve #auth; con sesión, la app y "Hola, nombre" */
+#app[hidden],#auth[hidden],#who[hidden],.authform[hidden]{display:none!important}
+.authwrap{max-width:400px;margin:0 auto;padding-top:max(48px,env(safe-area-inset-top,0px));display:flex;flex-direction:column;gap:20px}
+.authform{gap:12px}
+.authform .btn.primary{padding:10px 14px;font-size:15px}
+.autherr{margin:0;color:var(--crit);font-size:14px}
+.authswitch{margin:0;font-size:14px;color:var(--muted);text-align:center}
+.authswitch button{border:0;background:none;padding:0;color:var(--water);font-weight:600}
+.who{display:flex;align-items:center;gap:8px;font-size:14px;color:var(--fg-2);margin-top:4px}
+.who .btn{padding:4px 10px;font-size:13px}
 </style>
 
-<div class="wrap">
+<div id="auth" class="authwrap" hidden>
+  <div class="brand">
+    <h1>My<b>Good</b>Habits</h1>
+    <span class="sub">Inicia sesión para usar la app</span>
+  </div>
+  <form class="card authform" id="loginForm" novalidate>
+    <h2>Iniciar sesión</h2>
+    <label class="field">Correo<input type="email" name="email" autocomplete="email" required></label>
+    <label class="field">Contraseña<input type="password" name="password" autocomplete="current-password" required></label>
+    <p class="autherr" role="alert" hidden></p>
+    <button class="btn primary" type="submit">Entrar</button>
+    <p class="authswitch">¿No tienes cuenta? <button type="button" data-show="signupForm">Regístrate</button></p>
+  </form>
+  <form class="card authform" id="signupForm" novalidate hidden>
+    <h2>Crear cuenta</h2>
+    <label class="field">Nombre<input type="text" name="nombre" autocomplete="given-name" required></label>
+    <label class="field">Correo<input type="email" name="email" autocomplete="email" required></label>
+    <label class="field">Contraseña (mínimo 6 caracteres)<input type="password" name="password" autocomplete="new-password" minlength="6" required></label>
+    <p class="autherr" role="alert" hidden></p>
+    <button class="btn primary" type="submit">Crear cuenta</button>
+    <p class="authswitch">¿Ya tienes cuenta? <button type="button" data-show="loginForm">Inicia sesión</button></p>
+  </form>
+</div>
+
+<div class="wrap" id="app" hidden>
   <header class="top">
     <div class="brand">
       <h1>My<b>Good</b>Habits</h1>
       <span class="sub" id="sync">Conectando…</span>
+      <div class="who" id="who" hidden>Hola, <b id="whoName"></b> <button class="btn" type="button" id="logout">Cerrar sesión</button></div>
     </div>
     <nav class="tabs" role="tablist" aria-label="Secciones">
       <button role="tab" id="tab-hoy" data-tab="hoy" aria-selected="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="4.5"/></svg>Hoy</button>
@@ -237,6 +273,7 @@ th{color:var(--muted);font-weight:500}
 </div>
 <div id="toast" class="toast" hidden></div>
 
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
 (() => {
 "use strict";
@@ -949,5 +986,122 @@ render();
     S.days = next; render();
   }, ()=>{ sync.textContent = "Sin conexión con tus datos"; });
 })();
+})();
+</script>
+
+<script>
+// ---------- Cuenta: registro e inicio de sesión con Supabase Auth ----------
+// Va aparte del código de la app para no tocar sus funciones. Sin sesión solo se ven los formularios.
+(() => {
+"use strict";
+const SUPABASE_URL = "https://gaopxxuklyirwqkoykta.supabase.co";
+const SUPABASE_KEY = "sb_publishable_SoMGA2CtM5Zxblyym_nsXQ_8pbl2hLO"; // publishable: es pública a propósito; RLS protege los datos
+
+const $ = id => document.getElementById(id);
+const authEl = $("auth"), appEl = $("app"), whoEl = $("who"), whoName = $("whoName");
+const loginForm = $("loginForm"), signupForm = $("signupForm");
+
+function showError(form, msg){ const p = form.querySelector(".autherr"); p.textContent = msg || ""; p.hidden = !msg; }
+function busy(form, on){ form.querySelector('button[type="submit"]').disabled = on; }
+function showForm(form){
+  loginForm.hidden = form !== loginForm; signupForm.hidden = form !== signupForm;
+  showError(loginForm, ""); showError(signupForm, "");
+}
+function showLoggedOut(){ appEl.hidden = true; whoEl.hidden = true; authEl.hidden = false; }
+function showLoggedIn(nombre){ whoName.textContent = nombre; whoEl.hidden = false; authEl.hidden = true; appEl.hidden = false; }
+
+document.querySelectorAll("[data-show]").forEach(b => b.addEventListener("click", () => {
+  const f = $(b.dataset.show); showForm(f); f.querySelector("input").focus();
+}));
+
+if(!window.supabase?.createClient){
+  showLoggedOut();
+  showError(loginForm, "No se pudo cargar el inicio de sesión. Revisa tu internet y recarga la página.");
+  busy(loginForm, true); busy(signupForm, true);
+  return;
+}
+const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY); // guarda la sesión en el navegador: sigue al recargar
+
+async function nameFor(user){
+  const { data } = await sb.from("perfiles").select("nombre").eq("id", user.id).maybeSingle();
+  return data?.nombre || user.user_metadata?.nombre || user.email;
+}
+
+// Cada cambio de sesión (también al recargar: INITIAL_SESSION) decide qué se ve.
+let current = null;
+sb.auth.onAuthStateChange((event, session) => {
+  // Supabase recomienda no llamar a la base dentro de este callback; se hace en el siguiente turno.
+  setTimeout(async () => {
+    if(!session){ current = null; showLoggedOut(); return; }
+    const id = session.user.id;
+    if(current === id && event !== "SIGNED_IN") return;
+    current = id;
+    const nombre = await nameFor(session.user);
+    if(current === id) showLoggedIn(nombre);
+  }, 0);
+});
+
+signupForm.addEventListener("submit", async e => {
+  e.preventDefault();
+  const f = signupForm.elements;
+  const nombre = f.nombre.value.trim(), email = f.email.value.trim(), password = f.password.value;
+  if(!nombre) return showError(signupForm, "Escribe tu nombre.");
+  if(!email || !f.email.checkValidity()) return showError(signupForm, "Escribe un correo válido.");
+  if(password.length < 6) return showError(signupForm, "La contraseña debe tener al menos 6 caracteres.");
+  showError(signupForm, ""); busy(signupForm, true);
+  try{
+    const { data, error } = await sb.auth.signUp({ email, password, options: { data: { nombre } } });
+    if(error){
+      const taken = error.code === "user_already_exists" || /already|registered/i.test(error.message);
+      const weak = error.code === "weak_password";
+      return showError(signupForm, taken ? "Ese correo ya está registrado. Inicia sesión."
+        : weak ? "La contraseña debe tener al menos 6 caracteres."
+        : "No se pudo crear la cuenta: " + error.message);
+    }
+    // Con confirmación de correo prendida, un correo repetido no da error: regresa un usuario sin identidades.
+    if(data.user && Array.isArray(data.user.identities) && data.user.identities.length === 0)
+      return showError(signupForm, "Ese correo ya está registrado. Inicia sesión.");
+    if(!data.session)
+      return showError(signupForm, "Te mandamos un correo para confirmar tu cuenta. Confírmalo y luego inicia sesión.");
+    const { error: perfilError } = await sb.from("perfiles").insert({ id: data.user.id, nombre });
+    if(perfilError){
+      await sb.auth.signOut();
+      return showError(signupForm, "Tu cuenta se creó, pero no se pudo guardar tu nombre: " + perfilError.message);
+    }
+    signupForm.reset();
+  }catch(err){
+    showError(signupForm, "No se pudo conectar. Revisa tu internet e inténtalo otra vez.");
+  }finally{
+    busy(signupForm, false);
+  }
+});
+
+loginForm.addEventListener("submit", async e => {
+  e.preventDefault();
+  const f = loginForm.elements;
+  const email = f.email.value.trim(), password = f.password.value;
+  if(!email || !password) return showError(loginForm, "Escribe tu correo y tu contraseña.");
+  showError(loginForm, ""); busy(loginForm, true);
+  try{
+    const { error } = await sb.auth.signInWithPassword({ email, password });
+    if(error){
+      const unconfirmed = error.code === "email_not_confirmed" || /not confirmed/i.test(error.message);
+      const wrong = error.code === "invalid_credentials" || /invalid/i.test(error.message);
+      return showError(loginForm, unconfirmed ? "Confirma tu correo antes de entrar."
+        : wrong ? "Correo o contraseña incorrectos."
+        : "No se pudo iniciar sesión: " + error.message);
+    }
+    loginForm.reset();
+  }catch(err){
+    showError(loginForm, "No se pudo conectar. Revisa tu internet e inténtalo otra vez.");
+  }finally{
+    busy(loginForm, false);
+  }
+});
+
+$("logout").addEventListener("click", async () => {
+  try{ await sb.auth.signOut(); }catch(err){}
+  current = null; showForm(loginForm); showLoggedOut();
+});
 })();
 </script>
