@@ -85,5 +85,5 @@ Estoy entrenando para mi medio maratón y a veces salgo a correr cansado, que es
 
 ## Uso de IA
 - Herramienta: Claude (en el panel de Claude en Chrome), que también escribió el código y lo subió a mi repo de GitHub.
-- Para qué: entender las instrucciones de la tarea, cuestionar mi especificación, escribir el código de la función y de las pruebas, y encontrar errores.
+- Para qué: entender las instrucciones de la tarea, cuestionar mi especificación, escribir el código de la función y de las pruebas, encontrar errores y redactar el texto de esta bitácora a partir de lo que yo le contesté y decidí. Yo la revisé antes de entregarla.
 - Qué decidí o verifiqué yo: elegí la función, la regla (Body Battery menor a 40 o menos de 6 h de sueño), los textos de la tarjeta, cambiar de Strava a Garmin, usar el Body Battery más reciente, que Garmin gane en los anillos y que solo mi cuenta vea los datos. Probé la función en el deploy, detecté que se quedaba en "Revisando..." y comparé el resultado con mi app de Garmin Connect.
