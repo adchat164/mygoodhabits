@@ -13,7 +13,7 @@ Body Battery y horas de sueño de hoy, sacados de la Garmin Personal API con mi 
 - Prueba 2: si dormí menos de 6 h aunque el Body Battery esté bien, debe decir descansa.
 - Prueba 3: si todo está bien, debe decir "Hoy sí corre: Body Battery en X y dormiste Y h".
 
-Auditada por: **[TÚ: nombre de tu compañero y qué te cuestionó]**
+Auditada por: Aldo Castelán, en la Sesión 19. Revisó la idea del coach de descanso y dijo que fue muy buena idea ponerlo.
 
 ## Paso 2 — Decisiones durante la construcción
 
