@@ -558,6 +558,8 @@ function viewHoy(){
         </div>
       </section>
 
+      ${isToday?`<section class="card" id="c-coach"><div class="head"><h2>Coach de descanso</h2><span class="muted">Garmin</span></div><p class="coachmsg" style="margin:0;font-weight:600">${esc(COACH.texto)}</p></section>`:""}
+
       <section class="card" style="padding-block:14px">
         <div class="week">${weekDays(S.sel).map(k=>{ const s = score(S.days[k]), bb = band(s), fut = k>t;
           return `<button class="wday" data-act="goday" data-v="${k}" ${fut?"disabled":""} ${k===t?'aria-current="date"':""} aria-pressed="${k===S.sel}" aria-label="${esc(fmtLong(k))}${s==null?", sin datos":", puntaje "+s}"><span>${esc(fmtWd(k))}</span><span class="rw">${ring((s||0)/100, bb.c, 40, 4)}<span class="num">${s==null?"":s}</span></span></button>`; }).join("")}</div>
@@ -861,6 +863,19 @@ function viewDiario(){
 // ---------- render ----------
 let pendingRender = false;
 function editing(){ const a=document.activeElement; return a && document.getElementById("main").contains(a) && (a.tagName==="TEXTAREA" || (a.tagName==="INPUT" && a.type!=="button")); }
+// ---------- coach de descanso (Garmin) ----------
+let COACH = { texto: "Revisando tus datos de Garmin…" };
+async function cargarCoach(){
+  try{
+    const { data } = await sb.auth.getSession();
+    const tok = data?.session?.access_token;
+    const r = await fetch("/api/garmin-hoy", { headers: tok ? { Authorization: `Bearer ${tok}` } : {} });
+    const j = await r.json();
+    COACH = r.ok ? j : { texto: j.error || "No pude conectar con Garmin" };
+  }catch(e){ COACH = { texto: "No pude conectar con Garmin" }; }
+  if(S.tab==="hoy") render();
+}
+
 function render(){
   if(editing()){ pendingRender = true; return; }
   pendingRender = false;
@@ -1008,7 +1023,7 @@ function showForm(form){
   showError(loginForm, ""); showError(signupForm, "");
 }
 function showLoggedOut(){ appEl.hidden = true; whoEl.hidden = true; authEl.hidden = false; }
-function showLoggedIn(nombre){ whoName.textContent = nombre; whoEl.hidden = false; authEl.hidden = true; appEl.hidden = false; }
+function showLoggedIn(nombre){ whoName.textContent = nombre; whoEl.hidden = false; authEl.hidden = true; appEl.hidden = false; cargarCoach(); }
 
 document.querySelectorAll("[data-show]").forEach(b => b.addEventListener("click", () => {
   const f = $(b.dataset.show); showForm(f); f.querySelector("input").focus();
