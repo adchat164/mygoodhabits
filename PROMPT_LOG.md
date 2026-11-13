@@ -78,7 +78,7 @@ Hoy sí corre: Body Battery en 73 y dormiste 8.8 h
 
 Pruebas automáticas (en `test/descanso.test.js`): 6 de 6 pasan, incluido el caso de Body Battery 30 que tiene que decir "Hoy descansa: Body Battery en 30".
 
-**Pendiente:** segunda prueba real en la noche con Body Battery abajo de 40 para probar el caso de "descansa".
+El caso de "descansa" está cubierto por las pruebas automáticas, todavía no lo he probado con datos reales.
 
 ## Por qué esta función sí resuelve mi problema
 Estoy entrenando para mi medio maratón y a veces salgo a correr cansado, que es justo cuando uno se lesiona. Mi especificación dice que la tarjeta me dice si descanso o corro con mi Body Battery y mi sueño de hoy, y eso es lo que hace. No es solo que la prueba pasó, la decisión sale de cómo se recuperó mi cuerpo según mi reloj y no de cómo creo que me siento. Si mi Body Battery está abajo de 40 o dormí menos de 6 h me dice que descanse antes de que me lastime.
