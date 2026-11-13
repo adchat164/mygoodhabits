@@ -872,8 +872,19 @@ async function cargarCoach(){
     const r = await fetch("/api/garmin-hoy", { headers: tok ? { Authorization: `Bearer ${tok}` } : {} });
     const j = await r.json();
     COACH = r.ok ? j : { texto: j.error || "No pude conectar con Garmin" };
+    if(r.ok && j.datos) aplicarGarmin(j.fecha, j.datos);
   }catch(e){ COACH = { texto: "No pude conectar con Garmin" }; }
   if(S.tab==="hoy") render();
+}
+// Llena los anillos con Garmin. Decisión de Adolfo: Garmin siempre gana sobre lo registrado a mano.
+// Agua y ánimo no se tocan (Garmin no los mide).
+function aplicarGarmin(fecha, g){
+  const d = day(fecha), sh = stepsHabit(); let cambio = false;
+  if(g.acostarse && g.despertar){ d.sleep.bed = g.acostarse; d.sleep.wake = g.despertar; delete d.sleep.h; cambio = true; }
+  else if(g.suenoH != null){ d.sleep.bed = ""; d.sleep.wake = ""; d.sleep.h = g.suenoH; cambio = true; }
+  if(sh && g.pasos != null){ d.hab[sh.id] = g.pasos; cambio = true; }
+  if(g.ejercicioMin != null){ d.ex = (d.ex||[]).filter(e=>e.src!=="garmin").concat(g.ejercicioMin>0?[{t:"Minutos de intensidad (Garmin)", m:g.ejercicioMin, i:6, src:"garmin"}]:[]); cambio = true; }
+  if(cambio) persistDay(fecha);
 }
 window.cargarCoach = cargarCoach; // el bloque de login la llama al iniciar sesión
 

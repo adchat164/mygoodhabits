@@ -43,6 +43,20 @@ Auditada por: **[TÚ: nombre de tu compañero y qué te cuestionó]**
 - Mi decisión: **[TÚ]**
 - Por qué: **[TÚ]**
 
+### Decisión 5 — Error que encontré probando: la tarjeta se quedaba en "Revisando..."
+- La IA dijo que ya estaba lista, pero en el deploy la tarjeta nunca cambiaba.
+- Campo en juego: **Cómo se sabrá que funciona**.
+- Causa: la tarjeta y el login estaban en bloques de código separados y la tarjeta no veía la sesión.
+- Mi decisión: **[TÚ]**
+- Por qué: **[TÚ]**
+
+### Decisión 6 — Ampliar el alcance: llenar los anillos con Garmin
+- Yo pedí que los anillos de sueño, ejercicio y pasos también se llenen con Garmin. La IA me avisó que eso se sale de mi especificación.
+- Campo en juego: **Qué hace** (alcance).
+- Decidí hacerlo como extensión. Agua y ánimo se quedan a mano porque Garmin no los mide.
+- Si ya registré algo a mano y Garmin dice otra cosa, decidí que **Garmin siempre gana**.
+- Por qué: **[TÚ]**
+
 ## Paso 3 — Validación (antes de la Sesión 20)
 
 - Fecha y hora de la prueba: **[TÚ]**

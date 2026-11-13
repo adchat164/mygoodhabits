@@ -3,6 +3,7 @@
 // La llave vive en la variable de entorno GARMIN_PERSONAL_API_KEY (nunca en el código).
 // Solo responde si el usuario tiene sesión en Supabase (son datos de salud).
 import { decidirDescanso } from "../src/descanso.js";
+import { datosGarmin } from "../src/garmin-datos.js";
 
 const GARMIN = "https://personal.connectapi.garmin.com";
 const SUPABASE_URL = "https://gaopxxuklyirwqkoykta.supabase.co";
@@ -46,14 +47,9 @@ export default async function handler(req, res) {
       getGarmin(token, `/usersummary-service/usersummary/daily?calendarDate=${fecha}`),
       getGarmin(token, `/sleep-service/sleep/dailySleep?date=${fecha}`),
     ]);
-    const bb = resumen?.bodyBatteryMostRecentValue;
-    const seg = sueno?.sleepTimeSeconds ?? sueno?.dailySleepDTO?.sleepTimeSeconds;
-    const datos = {
-      bodyBattery: typeof bb === "number" ? bb : null,
-      suenoH: typeof seg === "number" ? Math.round((seg / 3600) * 10) / 10 : null,
-    };
+    const datos = datosGarmin(resumen, sueno);
     res.setHeader("Cache-Control", "no-store");
-    return res.status(200).json({ fecha, datos, ...decidirDescanso(datos) });
+    return res.status(200).json({ fecha, datos, ...decidirDescanso({ bodyBattery: datos.bodyBattery, suenoH: datos.suenoH }) });
   } catch (e) {
     return res.status(502).json({ error: String(e.message || e) });
   }
