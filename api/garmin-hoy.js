@@ -11,11 +11,12 @@ const SUPABASE_KEY = "sb_publishable_SoMGA2CtM5Zxblyym_nsXQ_8pbl2hLO";
 
 const hoyCDMX = () => new Date().toLocaleDateString("en-CA", { timeZone: "America/Mexico_City" });
 
-async function usuarioValido(req) {
+// Devuelve el usuario de Supabase con sesión válida, o null.
+async function usuarioConSesion(req) {
   const auth = req.headers.authorization || "";
-  if (!auth.startsWith("Bearer ")) return false;
+  if (!auth.startsWith("Bearer ")) return null;
   const r = await fetch(`${SUPABASE_URL}/auth/v1/user`, { headers: { apikey: SUPABASE_KEY, Authorization: auth } });
-  return r.ok;
+  return r.ok ? r.json() : null;
 }
 
 async function tokenGarmin(key) {
@@ -37,7 +38,14 @@ async function getGarmin(token, path) {
 
 export default async function handler(req, res) {
   try {
-    if (!(await usuarioValido(req))) return res.status(401).json({ error: "Inicia sesión" });
+    const user = await usuarioConSesion(req);
+    if (!user) return res.status(401).json({ error: "Inicia sesión" });
+    // La llave de Garmin es solo de Adolfo: nadie más puede ver estos datos aunque se registre.
+    // El correo del dueño vive en Vercel (GARMIN_OWNER_EMAIL), no en el código.
+    const dueno = (process.env.GARMIN_OWNER_EMAIL || "").trim().toLowerCase();
+    if (!dueno) return res.status(500).json({ error: "Falta GARMIN_OWNER_EMAIL en Vercel" });
+    if ((user.email || "").toLowerCase() !== dueno)
+      return res.status(403).json({ error: "El coach de Garmin solo está conectado a la cuenta del dueño" });
     const key = process.env.GARMIN_PERSONAL_API_KEY;
     if (!key) return res.status(500).json({ error: "Falta GARMIN_PERSONAL_API_KEY en Vercel" });
 

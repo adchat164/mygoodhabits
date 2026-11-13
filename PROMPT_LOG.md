@@ -57,6 +57,13 @@ Auditada por: **[TÚ: nombre de tu compañero y qué te cuestionó]**
 - Si ya registré algo a mano y Garmin dice otra cosa, decidí que **Garmin siempre gana**.
 - Por qué: **[TÚ]**
 
+### Decisión 7 — Hueco de seguridad: cualquiera que se registrara veía mis datos de Garmin
+- Con solo pedir sesión, cualquier persona que creara cuenta en MyGoodHabits veía mi Body Battery, mi sueño y mis pasos, porque la llave de Garmin es mía.
+- Campo en juego: **Qué datos necesita** (el límite de "solo mi cuenta").
+- Arreglo: el endpoint ahora solo responde si el correo de la sesión es el mío (guardado en Vercel como GARMIN_OWNER_EMAIL, no en el código). Los demás usuarios reciben un error 403.
+- Mi decisión: **[TÚ]**
+- Por qué: **[TÚ]**
+
 ## Paso 3 — Validación (antes de la Sesión 20)
 
 - Fecha y hora de la prueba: **[TÚ]**
