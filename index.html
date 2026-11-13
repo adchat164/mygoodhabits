@@ -867,7 +867,7 @@ function editing(){ const a=document.activeElement; return a && document.getElem
 let COACH = { texto: "Revisando tus datos de Garmin…" };
 async function cargarCoach(){
   try{
-    const { data } = await sb.auth.getSession();
+    const { data } = await window.sbClient.auth.getSession();
     const tok = data?.session?.access_token;
     const r = await fetch("/api/garmin-hoy", { headers: tok ? { Authorization: `Bearer ${tok}` } : {} });
     const j = await r.json();
@@ -875,6 +875,7 @@ async function cargarCoach(){
   }catch(e){ COACH = { texto: "No pude conectar con Garmin" }; }
   if(S.tab==="hoy") render();
 }
+window.cargarCoach = cargarCoach; // el bloque de login la llama al iniciar sesión
 
 function render(){
   if(editing()){ pendingRender = true; return; }
@@ -1023,7 +1024,7 @@ function showForm(form){
   showError(loginForm, ""); showError(signupForm, "");
 }
 function showLoggedOut(){ appEl.hidden = true; whoEl.hidden = true; authEl.hidden = false; }
-function showLoggedIn(nombre){ whoName.textContent = nombre; whoEl.hidden = false; authEl.hidden = true; appEl.hidden = false; cargarCoach(); }
+function showLoggedIn(nombre){ whoName.textContent = nombre; whoEl.hidden = false; authEl.hidden = true; appEl.hidden = false; window.cargarCoach?.(); }
 
 document.querySelectorAll("[data-show]").forEach(b => b.addEventListener("click", () => {
   const f = $(b.dataset.show); showForm(f); f.querySelector("input").focus();
@@ -1035,7 +1036,8 @@ if(!window.supabase?.createClient){
   busy(loginForm, true); busy(signupForm, true);
   return;
 }
-const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY); // guarda la sesión en el navegador: sigue al recargar
+const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+window.sbClient = sb; // para que la tarjeta del coach mande la sesión a /api/garmin-hoy // guarda la sesión en el navegador: sigue al recargar
 
 async function nameFor(user){
   const { data } = await sb.from("perfiles").select("nombre").eq("id", user.id).maybeSingle();
