@@ -385,20 +385,22 @@ function saveErr(){ toast("No se pudo guardar. Revisa tu conexión y vuelve a in
 function persistDay(date){
   const d = S.days[date]; if(d) delete d.example;
   if(!db) return;
+  const base = db;
   dirty.add(date); clearTimeout(timers[date]);
   timers[date] = setTimeout(()=>{
     timers[date]=null;
     const body = clone(S.days[date]);
-    queue("d"+date, ()=>db.collection("days").doc(date).set(body)).catch(saveErr).finally(()=>{ if(!timers[date]) dirty.delete(date); });
+    queue("d"+date, ()=>base.collection("days").doc(date).set(body)).catch(saveErr).finally(()=>{ if(!timers[date]) dirty.delete(date); });
   }, 450);
 }
 function persistConfig(){
   if(!db) return;
+  const base = db;
   dirty.add("@config"); clearTimeout(timers.cfg);
   timers.cfg = setTimeout(()=>{
     timers.cfg=null;
     const body = clone(S.config);
-    queue("cfg", ()=>db.doc("config/main").set(body)).catch(saveErr).finally(()=>{ if(!timers.cfg) dirty.delete("@config"); });
+    queue("cfg", ()=>base.doc("config/main").set(body)).catch(saveErr).finally(()=>{ if(!timers.cfg) dirty.delete("@config"); });
   }, 450);
 }
 async function clearExamples(){
@@ -871,7 +873,9 @@ async function cargarCoach(){
     const tok = data?.session?.access_token;
     const r = await fetch("/api/garmin-hoy", { headers: tok ? { Authorization: `Bearer ${tok}` } : {} });
     const j = await r.json();
-    COACH = r.ok ? j : { texto: j.error || "No pude conectar con Garmin" };
+    COACH = r.ok ? j
+      : r.status === 403 ? { texto: "El coach de descanso todavía solo está conectado al Garmin del creador de la app. Mientras, registra tu sueño y tu ejercicio a mano." }
+      : { texto: j.error || "No pude conectar con Garmin" };
     if(r.ok && j.datos) aplicarGarmin(j.fecha, j.datos);
   }catch(e){ COACH = { texto: "No pude conectar con Garmin" }; }
   if(S.tab==="hoy") render();
@@ -991,28 +995,60 @@ function demoDays(){
   return out;
 }
 
+// ---------- datos en Supabase ----------
+// Cada usuario guarda sus días y sus metas en Supabase (tablas "dias" y "configuracion").
+// RLS en Supabase hace que cada quien solo pueda leer y cambiar sus propios renglones.
+// Se cargan solo los últimos 400 días para que la app no se vuelva lenta con los años.
+let uid = null;
+function supaDb(sb, userId){
+  const ok = ({ error }) => { if(error) throw error; };
+  return {
+    doc(){ return { set: datos => sb.from("configuracion").upsert({ user_id: userId, datos }).then(ok) }; },
+    collection(){ return { doc: fecha => ({
+      set: datos => sb.from("dias").upsert({ user_id: userId, fecha, datos }).then(ok),
+      delete: () => sb.from("dias").delete().eq("user_id", userId).eq("fecha", fecha).then(ok)
+    }) }; }
+  };
+}
+async function conectarDatos(userId){
+  if(uid === userId) return;
+  const sync = document.getElementById("sync"), sb = window.sbClient;
+  uid = userId; db = null; dirty.clear();
+  S.config = clone(DEFAULT_CONFIG); S.days = {}; render();
+  sync.textContent = "Cargando tus datos…";
+  try{
+    const [c, d] = await Promise.all([
+      sb.from("configuracion").select("datos").eq("user_id", userId).maybeSingle(),
+      sb.from("dias").select("fecha, datos").eq("user_id", userId).order("fecha", { ascending: false }).limit(400)
+    ]);
+    if(c.error) throw c.error;
+    if(d.error) throw d.error;
+    if(uid !== userId) return; // cambió la sesión mientras cargaba
+    S.config = c.data ? Object.assign(clone(DEFAULT_CONFIG), clone(c.data.datos)) : clone(DEFAULT_CONFIG);
+    const next = {};
+    (d.data || []).forEach(r => {
+      const v = clone(r.datos);
+      next[r.fecha] = Object.assign(blankDay(r.fecha), v, { date: r.fecha, sleep: Object.assign({bed:"",wake:"",q:0}, v.sleep||{}), ex: v.ex||[], hab: v.hab||{} });
+    });
+    S.days = next;
+    db = supaDb(sb, userId);
+    sync.textContent = "Guardado en tu cuenta";
+  }catch(e){
+    sync.textContent = "No se pudieron cargar tus datos. Recarga la página.";
+  }
+  render();
+  cargarCoach(); // después de cargar, para que Garmin llene el día ya con tus datos
+}
+function desconectarDatos(){
+  uid = null; db = null; dirty.clear();
+  S.config = clone(DEFAULT_CONFIG); S.days = {}; COACH = { texto: "Revisando tus datos de Garmin…" };
+  render();
+}
+window.conectarDatos = conectarDatos;   // el bloque de login las llama
+window.desconectarDatos = desconectarDatos;
+
 // ---------- boot ----------
 render();
-(async () => {
-  try{ db = window.claude?.use ? await window.claude.use("db") : null; }catch(e){ db = null; }
-  const sync = document.getElementById("sync");
-  if(!db){
-    sync.textContent = "Modo demostración: los cambios no se guardan";
-    S.days = demoDays(); render(); return;
-  }
-  sync.textContent = "Guardado en tu cuenta";
-  db.doc("config/main").onSnapshot(snap=>{
-    if(dirty.has("@config")) return;
-    S.config = snap.exists ? Object.assign(clone(DEFAULT_CONFIG), snap.data()) : clone(DEFAULT_CONFIG);
-    S.config = clone(S.config); render();
-  }, ()=>{ sync.textContent = "Sin conexión con tus datos"; });
-  db.collection("days").onSnapshot(snap=>{
-    const next = {};
-    snap.docs.forEach(doc=>{ const v = clone(doc.data()); next[doc.id] = Object.assign(blankDay(doc.id), v, {sleep:Object.assign({bed:"",wake:"",q:0}, v.sleep||{}), ex:v.ex||[], hab:v.hab||{}}); });
-    dirty.forEach(k=>{ if(k!=="@config" && S.days[k]) next[k]=S.days[k]; });
-    S.days = next; render();
-  }, ()=>{ sync.textContent = "Sin conexión con tus datos"; });
-})();
 })();
 </script>
 
@@ -1034,8 +1070,8 @@ function showForm(form){
   loginForm.hidden = form !== loginForm; signupForm.hidden = form !== signupForm;
   showError(loginForm, ""); showError(signupForm, "");
 }
-function showLoggedOut(){ appEl.hidden = true; whoEl.hidden = true; authEl.hidden = false; }
-function showLoggedIn(nombre){ whoName.textContent = nombre; whoEl.hidden = false; authEl.hidden = true; appEl.hidden = false; window.cargarCoach?.(); }
+function showLoggedOut(){ appEl.hidden = true; whoEl.hidden = true; authEl.hidden = false; window.desconectarDatos?.(); }
+function showLoggedIn(nombre, userId){ whoName.textContent = nombre; whoEl.hidden = false; authEl.hidden = true; appEl.hidden = false; window.conectarDatos?.(userId); }
 
 document.querySelectorAll("[data-show]").forEach(b => b.addEventListener("click", () => {
   const f = $(b.dataset.show); showForm(f); f.querySelector("input").focus();
@@ -1065,7 +1101,7 @@ sb.auth.onAuthStateChange((event, session) => {
     if(current === id && event !== "SIGNED_IN") return;
     current = id;
     const nombre = await nameFor(session.user);
-    if(current === id) showLoggedIn(nombre);
+    if(current === id) showLoggedIn(nombre, id);
   }, 0);
 });
 
